@@ -10,8 +10,8 @@ Date_added: date added to DB,
 Cluster : {current: date_1,
             date_1: cgtX,
             date_2: cgtY},
-Serovar: serovar,
-ST: mlst,
+Serovar: serovar (if available),
+ST: mlst (if available),
 Database: Name of cgMLST database used to generate clusters
 
 
