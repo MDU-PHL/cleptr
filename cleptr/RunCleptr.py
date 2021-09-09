@@ -100,7 +100,7 @@ class Cleptr(object):
                     }
             }
         return sample_dict
-
+    
     def _get_date_analysed(self):
         """
         get the current date for use in database
@@ -399,9 +399,7 @@ class ReportCleptr(Cleptr):
         return results
 
 
-
-
-    
+   
     def report(self):
 
         if self._check_file(path = self.sample_db) and self._check_prefix(self.prefix):
