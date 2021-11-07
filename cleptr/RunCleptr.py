@@ -368,11 +368,13 @@ class ReportCleptr(Cleptr):
         clst = f"{sample_dict[iso]['clusters'][crnt]}"
         dte = sample_dict[iso]['date_added']
         db = sample_dict[iso]['cgmlst_scheme']
+        updtd = sample_dict[iso]['date_updated']
         prev_date = self._get_prev(cluster_dict = sample_dict[iso]['clusters'])
         prev = f"{sample_dict[iso]['clusters'][prev_date]}" if prev_date != '' else prev_date
         output_dict['cgT'] = clst
         output_dict['previous_cgT'] = prev
         output_dict['date_added'] = dte
+        output_dict['date_updated'] = updtd
         output_dict['cgmlst_scheme'] = db
 
         return output_dict
