@@ -70,7 +70,8 @@ class Cleptr(object):
         """
 
         try:
-            with open(outputname, 'w') as j:
+            o = pathlib.Path(outputname).name
+            with open(o, 'w') as j:
                 json.dump(_dict, j)
         except:
             LOGGER.critical(f"It seems something has gone wrong with saving {outputname}. Sorry.")
@@ -221,6 +222,7 @@ class RunCleptr(Cleptr):
         """
     #     print(current_dict)
     #     print(current_id)
+
         # print(f"Previous:{len(prev)}")
         # print(f"Previous:{prev}")
         new_id = max(clusters_taken) + 1
@@ -302,11 +304,13 @@ class RunCleptr(Cleptr):
                     current_date = sample_dict[i]['current']
                     if sample_dict[i]['clusters'][current_date] != cluster:
                         sample_dict[i]['current'] = analysis_date
+                        sample_dict[i]['date_updated'] = analysis_date
                         sample_dict[i]['clusters'][analysis_date] = cluster
                 else:
                     sample_dict[i] = {
                         'current': analysis_date,
                         'date_added': analysis_date,
+                        'date_updated': analysis_date,
                         'clusters':{
                             analysis_date: cluster
                         },
