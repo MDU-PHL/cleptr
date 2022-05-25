@@ -11,6 +11,7 @@
 
 
 import csv,json, logging, datetime, pathlib, pandas
+from hashlib import new
 from cleptr.CustomLog import CustomFormatter
 
 
@@ -21,7 +22,7 @@ ch.setLevel(logging.DEBUG)
 ch.setFormatter(CustomFormatter())
 fh = logging.FileHandler('cleptr.log')
 fh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('[%(levelname)s:%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p') 
+formatter = logging.Formatter('[%(levelname)s:%(asctime)s] %(message)s', datefmt='%d/%m/%Y %I:%M:%S %p') 
 fh.setFormatter(formatter)
 LOGGER.addHandler(ch) 
 LOGGER.addHandler(fh)
@@ -73,18 +74,20 @@ class Cleptr(object):
             o = pathlib.Path(outputname).name
             with open(o, 'w') as j:
                 json.dump(_dict, j)
-        except:
-            LOGGER.critical(f"It seems something has gone wrong with saving {outputname}. Sorry.")
+        except PermissionError:
+            LOGGER.critical(f"It seems something that you do not have permission to update this file : {outputname}. Sorry.")
             raise SystemExit
     
     def _generate_cluster_dict(self, _data):
 
         cluster_dict = {}
         for row in _data:
+            # print(row)
             if f"{row[self.cluster_col]}" not in cluster_dict:
                 cluster_dict[f"{row[self.cluster_col]}"] = [row[self.id_col]]
             else:
                 cluster_dict[f"{row[self.cluster_col]}"].append(row[self.id_col])
+        # print(cluster_dict['UC'])
         return cluster_dict
 
 
@@ -95,6 +98,7 @@ class Cleptr(object):
             sample_dict[row[id_col]] = {
                 'cgmlst_scheme': database_name,
                 'date_added': analysis_date,
+                'date_updated': analysis_date,
                 'current': analysis_date,
                 'clusters': {
                     analysis_date: f"{row[cluster_col]}"
@@ -225,8 +229,13 @@ class RunCleptr(Cleptr):
 
         # print(f"Previous:{len(prev)}")
         # print(f"Previous:{prev}")
-        new_id = max(clusters_taken) + 1
-        clusters_taken.append(new_id)
+        if current_id != 'UC':
+            new_id = max(clusters_taken) + 1
+            clusters_taken.append(new_id)
+        else:
+            LOGGER.info(f"UC samples have been found")
+            new_id = 'UC'
+        
     #     to_report = f"{new_id}{suff}"
         results[f"{new_id}"] = {}
         results[f"{new_id}"] = new_results[current_id]
@@ -241,20 +250,28 @@ class RunCleptr(Cleptr):
         results = {} # a dictionary to store resutls in
         clusters_taken = sorted([int(i) for i in list(prev_results.keys()) if i != 'UC']) # A list of names taken - can not be re-used
         # print(clusters_taken)
+        # print(new_results)
+        # print(prev_results)
         for new in new_results: # for each cluster in recent dataset
+            # print(new)
+            cs = set()
             if new != 'UC':
                 # print(new)
+                # if new == '636':
                 new_samples = set(sorted(new_results[new]))
+                # print(new_samples)
                 c = 0 # this is a counter to test how many original clusters a new cluster is comprised of
-                cs = set() # a list to track the clusters which overlap
+                # a list to track the clusters which overlap
         #     tracks which cluster type is triggered
                 not_changed = False
                 simple_merge = False
                 splits = False
+                uc = False
 #             print(new_samples)
                 for orig in prev_results:
+                    # print(orig)
                     orig_samples = set(sorted(prev_results[orig]))
-#                     print(orig_samples)
+                    # print(orig_samples)
                     if self._check_no_change(orig = orig_samples, new = new_samples):
                         # print(orig_samples)
                         results[orig] = prev_results[orig]
@@ -269,28 +286,43 @@ class RunCleptr(Cleptr):
                         c +=1
                         cs.add(orig)
             
+                    # break
+                # uc = True
             
-            cs_no_uc = list(set([i for i in cs if i != 'UC']))
-            if not_changed: # simple case 2 a cluster contains samples from a single orig cluster and new samples
-                LOGGER.info(f'Not changed : {new_samples} were cluster in previous results')
-    #             print(list(cs)[0])
-            elif simple_merge  and len(cs_no_uc) == 1: # simple case where a new cluster contains all samples from a previous clusters - ie a merging event previous names will not be used again since they are no longer clusters
-                LOGGER.info(f"A simple merging event has occured - only new or unclustered samples added to existing cluster.")
-                results[list(cs_no_uc)[0]]= list(new_samples)
-            elif simple_merge  and len(cs_no_uc) > 1:
-                LOGGER.info(f"A simple merge event has occured - {len(cs_no_uc)} clusters have merged.")
-                clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
-                                                        ,current_id=new, new_results = new_results, prev = list(cs_no_uc))
-            elif splits:
-                LOGGER.info(f"A split with or without a subsequent merge has occured.")
-                clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
-                                                        ,current_id=new, new_results = new_results, prev = list(cs_no_uc))
-
+                cs_no_uc = list(set([i for i in cs if i != 'UC']))
+                # print(cs_no_uc)
+                # print(simple_merge)
+                if not_changed: # simple case 2 a cluster contains samples from a single orig cluster and new samples
+                    # LOGGER.info(f'Not changed : {new_samples} were cluster in previous results')
+                    pass
+        #             print(list(cs)[0])
+                elif simple_merge  and len(cs_no_uc) == 1: # simple case where a new cluster contains all samples from a previous clusters - ie a merging event previous names will not be used again since they are no longer clusters
+                    # LOGGER.info(f"A simple merging event has occured - only new or unclustered samples added to existing cluster {cs_no_uc[0]}.")
+                    results[list(cs_no_uc)[0]]= list(new_samples)
+                elif simple_merge  and len(cs_no_uc) > 1:
+                    # LOGGER.info(f"A simple merge event has occured - {';'.join(cs_no_uc)} clusters have merged.")
+                    clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
+                                                            ,current_id=new, new_results = new_results, prev = list(cs_no_uc))
+                elif splits:
+                    # LOGGER.info(f"A split with or without a subsequent merge has occured.")
+                    # LOGGER.info(f"These previous cluster desginations will be retired {';'.join(cs_no_uc)}")
+                    clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
+                                                            ,current_id=new, new_results = new_results, prev = list(cs_no_uc))
+                elif uc:
+                    # LOGGER.info(f"{len(new_results[new])} unclustered samples have been found")
+                    raise SystemExit
+                else:
+                    LOGGER.info(f"A new cluster containing only new sequences has formed.")
+                    clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
+                                                            ,current_id=new, new_results = new_results)
+                
             else:
-                LOGGER.info(f"A new cluster containing only new sequences has formed.")
-                clusters_taken, results = self._name_clusters(clusters_taken = clusters_taken, results = results
-                                                        ,current_id=new, new_results = new_results)
-
+                LOGGER.info(f"Found {len(new_results[new])} unclustered sequences.")
+                results['UC'] = new_results[new]
+                # break
+        # for r in results:
+        #     print(r)
+        # print(results)
         return results
 
     
@@ -323,18 +355,20 @@ class RunCleptr(Cleptr):
 
         if self._check_inputs(_inputs = [self.input, self.clusters_db,  self.sample_db]):
             LOGGER.info(f"All input files are correct. cleptr will continue.")
-            
             LOGGER.info(f"Extracting new data.")
             new_data = self._open_file(input_file=self.input, delimiter='\t')
             new_clusters = self._generate_cluster_dict(_data = new_data)
             cluster_dict = self._open_json(input_file=self.clusters_db)
             LOGGER.info(f"Will now try to maintain your nomenclature.")
             new_cluster_dict = self._make_clusters(prev_results=cluster_dict, new_results=new_clusters)
-            # print(new_cluster_dict)
+            # print(new_cluster_dict['UC'])
             LOGGER.info(f"Updating sample db")
             sample_dict = self._open_json(input_file=self.sample_db)
             new_sample_dict = self._update_sample(new_cluster_dict = new_cluster_dict, sample_dict = sample_dict, 
                                                     analysis_date = self._get_date_analysed(), database_name = self.database_name)
+    
+            # print(new_cluster_dict['366'])
+            # print(new_sample_dict['2022-008990'])
             LOGGER.info(f"Saving the sample db : {self.sample_db}")
             self._save_json(_dict = new_sample_dict, outputname=f"{self.sample_db}")
             LOGGER.info(f"Saving the cluster db : {self.clusters_db}")
@@ -364,6 +398,7 @@ class ReportCleptr(Cleptr):
 
     def _get_data(self, sample_dict, output_dict, iso):
         
+        print(sample_dict[iso])
         crnt = sample_dict[iso]['current']
         clst = f"{sample_dict[iso]['clusters'][crnt]}"
         dte = sample_dict[iso]['date_added']
